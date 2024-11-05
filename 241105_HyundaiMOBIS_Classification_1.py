@@ -60,9 +60,18 @@ def plot_segments(df_filtered, predictions, segment_size):
     colors = px.colors.qualitative.Plotly  # Use Plotly's qualitative color palette
     color_map = {label: colors[i % len(colors)] for i, label in enumerate(unique_labels)}
 
-    for i, (start, pred) in enumerate(zip(range(0, len(df_filtered), segment_size), predictions)):
+    # Calculate the start indices for the segments based on filtered data
+    segment_starts = range(0, len(df_filtered), segment_size)
+
+    for i, start in enumerate(segment_starts):
         end = min(start + segment_size, len(df_filtered))
         
+        if end <= start:  # Skip if the segment is invalid
+            continue
+        
+        # Use the predicted class for the current segment
+        pred = predictions[i]
+
         # Use color based on predicted class
         color = color_map[pred]  # Get color for the predicted class
         
@@ -83,6 +92,14 @@ def plot_segments(df_filtered, predictions, segment_size):
             line=dict(color=color),
             name=f'Segment {i + 1}: Class {pred}'
         ))
+        
+        # Add vertical dashed line to indicate segment start
+        fig_nir.add_vline(x=df_filtered.index[start], line=dict(color='gray', dash='dash'), 
+                          annotation_text=f'Segment {i + 1}', 
+                          annotation_position='top right', annotation_font=dict(color='gray'))
+        fig_vis.add_vline(x=df_filtered.index[start], line=dict(color='gray', dash='dash'), 
+                          annotation_text=f'Segment {i + 1}', 
+                          annotation_position='top right', annotation_font=dict(color='gray'))
 
     fig_nir.update_layout(title='NIR Signal Segmentation',
                           xaxis_title='Sample Index',
