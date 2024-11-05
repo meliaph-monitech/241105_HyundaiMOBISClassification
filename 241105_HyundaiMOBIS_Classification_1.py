@@ -71,12 +71,6 @@ def plot_segments(df_filtered, predictions, segment_size):
             line=dict(color=color),
             name=f'Segment {i + 1}: Class {pred}'
         ))
-        
-        # Add vertical dashed line to indicate segment start
-        fig_nir.add_vline(x=start, line=dict(color='gray', dash='dash'), annotation_text=f'Segment {i + 1}', 
-                          annotation_position='top right', annotation_font=dict(color='gray'))
-        fig_vis.add_vline(x=start, line=dict(color='gray', dash='dash'), annotation_text=f'Segment {i + 1}', 
-                          annotation_position='top right', annotation_font=dict(color='gray'))
 
     fig_nir.update_layout(title='NIR Signal Segmentation',
                           xaxis_title='Sample Index',
