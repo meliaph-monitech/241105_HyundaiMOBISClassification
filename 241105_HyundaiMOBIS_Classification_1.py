@@ -86,7 +86,7 @@ def plot_segments(df_filtered, predictions, segment_size):
 st.title("Laser Welding Signal Classification")
 
 # Load the trained model from GitHub
-model_url = "https://github.com/meliaph-monitech/HyundaiMOBISClassification/blob/main/laser_welding_model.joblib"
+model_url = "https://raw.githubusercontent.com/meliaph-monitech/HyundaiMOBISClassification/main/laser_welding_model.joblib"
 model = load_model_from_github(model_url)
 
 # Step 2: Upload the new CSV file for classification
