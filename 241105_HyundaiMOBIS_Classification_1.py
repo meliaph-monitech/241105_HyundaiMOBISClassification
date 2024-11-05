@@ -6,6 +6,7 @@ import requests
 import io
 import base64
 import plotly.graph_objects as go
+import plotly.express as px
 
 # Function to load the trained model from GitHub using the API
 def load_model_from_github_api(owner, repo, path):
@@ -53,7 +54,7 @@ def extract_features(df_segment):
 def plot_segments(df_filtered, predictions, segment_size):
     # Create the colors for the segments based on the number of segments
     unique_segments = len(predictions)
-    color_map = plotly.colors.sequential.Viridis[:unique_segments]
+    color_map = px.colors.sequential.Viridis[:unique_segments]  # Use Plotly's Viridis color map
 
     # Create Plotly figures for NIR and VIS
     fig_nir = go.Figure()
