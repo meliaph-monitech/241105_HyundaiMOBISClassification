@@ -50,61 +50,46 @@ def extract_features(df_segment):
         'min_VIS': np.min(df_segment['VIS']),
     }
 
-# Function to visualize the segments with predicted categories
+# Function to plot segments with predicted categories
 def plot_segments(df_filtered, predictions, segment_size):
-    # Create the colors for the segments based on the number of segments
-    unique_segments = len(predictions)
-    color_map = px.colors.sequential.Viridis[:unique_segments]  # Use Plotly's Viridis color map
-
-    # Create Plotly figures for NIR and VIS
     fig_nir = go.Figure()
     fig_vis = go.Figure()
+    
+    # Create a color map for predictions
+    unique_labels = np.unique(predictions)
+    colors = px.colors.qualitative.Plotly  # Use Plotly's qualitative color palette
+    color_map = {label: colors[i % len(colors)] for i, label in enumerate(unique_labels)}
 
-    # Plot NIR segments
     for i, (start, pred) in enumerate(zip(range(0, len(df_filtered), segment_size), predictions)):
         end = min(start + segment_size, len(df_filtered))
-        # Add NIR line plot
+        
+        # Use color based on predicted class
+        color = color_map[pred]  # Get color for the predicted class
+        
+        # Plot NIR
         fig_nir.add_trace(go.Scatter(
             x=df_filtered.index[start:end],
             y=df_filtered['NIR'].iloc[start:end],
             mode='lines',
-            line=dict(color=color_map[i]),
+            line=dict(color=color),
             name=f'Segment {i + 1}: Class {pred}'
         ))
-        # Add a vertical dashed line to indicate segment boundaries
-        fig_nir.add_shape(type="line",
-            x0=df_filtered.index[start],
-            y0=df_filtered['NIR'].min(),
-            x1=df_filtered.index[start],
-            y1=df_filtered['NIR'].max(),
-            line=dict(color="gray", width=1, dash="dash"))
-
-    fig_nir.update_layout(title='NIR Signal Segmentation with Predicted Categories',
-                           xaxis_title='Sample Index',
-                           yaxis_title='NIR Value')
-
-    # Plot VIS segments
-    for i, (start, pred) in enumerate(zip(range(0, len(df_filtered), segment_size), predictions)):
-        end = min(start + segment_size, len(df_filtered))
-        # Add VIS line plot
+        
+        # Plot VIS
         fig_vis.add_trace(go.Scatter(
             x=df_filtered.index[start:end],
             y=df_filtered['VIS'].iloc[start:end],
             mode='lines',
-            line=dict(color=color_map[i]),
+            line=dict(color=color),
             name=f'Segment {i + 1}: Class {pred}'
         ))
-        # Add a vertical dashed line to indicate segment boundaries
-        fig_vis.add_shape(type="line",
-            x0=df_filtered.index[start],
-            y0=df_filtered['VIS'].min(),
-            x1=df_filtered.index[start],
-            y1=df_filtered['VIS'].max(),
-            line=dict(color="gray", width=1, dash="dash"))
 
-    fig_vis.update_layout(title='VIS Signal Segmentation with Predicted Categories',
-                           xaxis_title='Sample Index',
-                           yaxis_title='VIS Value')
+    fig_nir.update_layout(title='NIR Signal Segmentation',
+                          xaxis_title='Sample Index',
+                          yaxis_title='NIR Value')
+    fig_vis.update_layout(title='VIS Signal Segmentation',
+                          xaxis_title='Sample Index',
+                          yaxis_title='VIS Value')
 
     return fig_nir, fig_vis
 
