@@ -1,18 +1,21 @@
 import pandas as pd
 import numpy as np
 import joblib
-import plotly.graph_objects as go
+import requests
+import io
+import plotly.graph_objs as go
 import streamlit as st
-import plotly.express as px  # Import Plotly Express for color scales
 
-# Function to load the trained model
-def load_model(model_path):
-    return joblib.load(model_path)
+# Function to load the trained model from GitHub
+def load_model_from_github(url):
+    response = requests.get(url)
+    model = joblib.load(io.BytesIO(response.content))
+    return model
 
 # Function to load and filter the new CSV file
 def load_and_filter_csv(file, filter_column='L/O', filter_threshold=0.4):
     df = pd.read_csv(file)
-    df_filtered = df[df[filter_column] >= filter_threshold]  # Apply filtering
+    df_filtered = df[df[filter_column] >= filter_threshold]  # Apply the filtering based on L/O column
     return df_filtered[['NIR', 'VIS']]
 
 # Function to segment the signal data
@@ -40,96 +43,75 @@ def extract_features(df_segment):
 
 # Function to plot segments with predicted categories
 def plot_segments(df_filtered, predictions, segment_size):
+    # Create the color map
+    unique_segments = len(predictions)
+    colors = plotly.colors.sequential.Viridis[:unique_segments]  # Use Plotly's Viridis color map
+
+    # Create the figure for NIR and VIS
     fig_nir = go.Figure()
     fig_vis = go.Figure()
-    
-    # Create a color map for predictions
-    unique_labels = np.unique(predictions)
-    colors = px.colors.qualitative.Plotly  # Use Plotly's qualitative color palette
-    color_map = {label: colors[i % len(colors)] for i, label in enumerate(unique_labels)}
 
-    # Calculate the start indices for the segments based on filtered data
-    segment_starts = range(0, len(df_filtered), segment_size)
-
-    for i, start in enumerate(segment_starts):
+    for i, (start, pred) in enumerate(zip(range(0, len(df_filtered), segment_size), predictions)):
         end = min(start + segment_size, len(df_filtered))
+        fig_nir.add_trace(go.Scatter(x=df_filtered.index[start:end], 
+                                       y=df_filtered['NIR'].iloc[start:end],
+                                       mode='lines',
+                                       line=dict(color=colors[i % unique_segments]),
+                                       name=f'Segment {i + 1}: Class {pred}'))
         
-        if end <= start:  # Skip if the segment is invalid
-            continue
+        fig_vis.add_trace(go.Scatter(x=df_filtered.index[start:end], 
+                                      y=df_filtered['VIS'].iloc[start:end],
+                                      mode='lines',
+                                      line=dict(color=colors[i % unique_segments]),
+                                      name=f'Segment {i + 1}: Class {pred}'))
         
-        # Use the predicted class for the current segment
-        pred = predictions[i]
+        # Add vertical dashed line for segmentation
+        if end < len(df_filtered):
+            fig_nir.add_vline(x=df_filtered.index[end], line_width=1, line_dash="dash", line_color="gray")
+            fig_vis.add_vline(x=df_filtered.index[end], line_width=1, line_dash="dash", line_color="gray")
 
-        # Use color based on predicted class
-        color = color_map[pred]  # Get color for the predicted class
-        
-        # Plot NIR
-        fig_nir.add_trace(go.Scatter(
-            x=df_filtered.index[start:end],
-            y=df_filtered['NIR'].iloc[start:end],
-            mode='lines',
-            line=dict(color=color),
-            name=f'Segment {i + 1}: Class {pred}'
-        ))
-        
-        # Plot VIS
-        fig_vis.add_trace(go.Scatter(
-            x=df_filtered.index[start:end],
-            y=df_filtered['VIS'].iloc[start:end],
-            mode='lines',
-            line=dict(color=color),
-            name=f'Segment {i + 1}: Class {pred}'
-        ))
-        
-        # Add vertical dashed line to indicate segment start
-        fig_nir.add_vline(x=df_filtered.index[start], line=dict(color='gray', dash='dash'), 
-                          annotation_text=f'Segment {i + 1}', 
-                          annotation_position='top right', annotation_font=dict(color='gray'))
-        fig_vis.add_vline(x=df_filtered.index[start], line=dict(color='gray', dash='dash'), 
-                          annotation_text=f'Segment {i + 1}', 
-                          annotation_position='top right', annotation_font=dict(color='gray'))
+    fig_nir.update_layout(title='NIR Signal Segmentation with Predicted Categories',
+                          xaxis_title='Sample Index',
+                          yaxis_title='NIR',
+                          showlegend=True)
 
-    fig_nir.update_layout(title='NIR Signal Segmentation',
+    fig_vis.update_layout(title='VIS Signal Segmentation with Predicted Categories',
                           xaxis_title='Sample Index',
-                          yaxis_title='NIR Value')
-    fig_vis.update_layout(title='VIS Signal Segmentation',
-                          xaxis_title='Sample Index',
-                          yaxis_title='VIS Value')
+                          yaxis_title='VIS',
+                          showlegend=True)
 
     return fig_nir, fig_vis
 
-# Streamlit app layout
+# Streamlit App
 st.title("Laser Welding Signal Classification")
 
-# Step 1: Upload the trained model
-model_file = st.file_uploader("Upload your trained model file (.joblib):", type='joblib')
-if model_file:
-    model = load_model(model_file)
-    st.success("Model loaded successfully.")
+# Load the trained model from GitHub
+model_url = "https://github.com/meliaph-monitech/HyundaiMOBISClassification/blob/main/laser_welding_model.joblib"
+model = load_model_from_github(model_url)
 
-    # Step 2: Upload the new CSV file for classification
-    csv_file = st.file_uploader("Upload the new CSV file for classification:", type='csv')
-    if csv_file:
-        # Load and preprocess the new data
-        df_filtered = load_and_filter_csv(csv_file)
+# Step 2: Upload the new CSV file for classification
+uploaded_file = st.file_uploader("Upload the new CSV file for classification:", type="csv")
 
-        if not df_filtered.empty:
-            # Segment the filtered data
-            segments = segment_data(df_filtered)
+if uploaded_file is not None:
+    df_filtered = load_and_filter_csv(uploaded_file)
 
-            predictions = []
-            for segment in segments:
-                # Extract features for each segment
-                features = extract_features(segment)
-                feature_array = np.array(list(features.values())).reshape(1, -1)  # Reshape for model input
+    if not df_filtered.empty:
+        # Segment the filtered data
+        segments = segment_data(df_filtered)
 
-                # Predict the class
-                predicted_class = model.predict(feature_array)
-                predictions.append(predicted_class[0])  # Collect predictions for each segment
+        predictions = []
+        for segment in segments:
+            # Extract features for each segment
+            features = extract_features(segment)
+            feature_array = np.array(list(features.values())).reshape(1, -1)  # Reshape for model input
 
-            # Visualize the segments with predicted categories
-            fig_nir, fig_vis = plot_segments(df_filtered, predictions, segment_size=10000)
-            st.plotly_chart(fig_nir)
-            st.plotly_chart(fig_vis)
-        else:
-            st.warning("The uploaded CSV does not contain valid data after filtering.")
+            # Predict the class
+            predicted_class = model.predict(feature_array)
+            predictions.append(predicted_class[0])  # Collect predictions for each segment
+
+        # Visualize the segments with predicted categories
+        fig_nir, fig_vis = plot_segments(df_filtered, predictions, segment_size=10000)
+        st.plotly_chart(fig_nir)
+        st.plotly_chart(fig_vis)
+    else:
+        st.warning("The uploaded CSV does not contain valid data after filtering.")
