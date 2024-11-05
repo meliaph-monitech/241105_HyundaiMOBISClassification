@@ -3,18 +3,27 @@ import pandas as pd
 import numpy as np
 import joblib
 import requests
+import io
+import base64
 import plotly.graph_objects as go
 
-# Function to load the trained model from GitHub
-def load_model_from_github(model_url):
-    response = requests.get(model_url)
-    model = joblib.load(io.BytesIO(response.content))
-    return model
+# Function to load the trained model from GitHub using the API
+def load_model_from_github_api(owner, repo, path):
+    api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
+    response = requests.get(api_url)
+    if response.status_code == 200:
+        file_content = response.json()['content']
+        file_content_decoded = base64.b64decode(file_content)  # Decode the base64 content
+        model = joblib.load(io.BytesIO(file_content_decoded))
+        return model
+    else:
+        st.error("Failed to load model from GitHub.")
+        return None
 
 # Function to load and filter the new CSV file
 def load_and_filter_csv(file, filter_column='L/O', filter_threshold=0.4):
     df = pd.read_csv(file)
-    df_filtered = df[df[filter_column] >= filter_threshold]  # Apply filtering based on L/O column
+    df_filtered = df[df[filter_column] >= filter_threshold]  # Apply the filtering based on L/O column
     return df_filtered[['NIR', 'VIS']]
 
 # Function to segment the signal data
@@ -40,65 +49,78 @@ def extract_features(df_segment):
         'min_VIS': np.min(df_segment['VIS']),
     }
 
-# Function to plot the segments with predicted categories
-def plot_segments(df_filtered, predictions, segment_size=10000):
-    # Create color mapping for segments
+# Function to visualize the segments with predicted categories
+def plot_segments(df_filtered, predictions, segment_size):
+    # Create the colors for the segments based on the number of segments
     unique_segments = len(predictions)
-    colors = plotly.colors.sequential.Viridis[:unique_segments]  # Use Plotly's Viridis color map
+    color_map = plotly.colors.sequential.Viridis[:unique_segments]
 
-    # Create subplots for NIR and VIS
+    # Create Plotly figures for NIR and VIS
     fig_nir = go.Figure()
     fig_vis = go.Figure()
 
-    # Plot NIR signal
+    # Plot NIR segments
     for i, (start, pred) in enumerate(zip(range(0, len(df_filtered), segment_size), predictions)):
         end = min(start + segment_size, len(df_filtered))
+        # Add NIR line plot
         fig_nir.add_trace(go.Scatter(
             x=df_filtered.index[start:end],
             y=df_filtered['NIR'].iloc[start:end],
             mode='lines',
-            line=dict(color=colors[i % unique_segments]),  # Color by segment index
-            name=f'Segment {i+1}: Class {pred}'
+            line=dict(color=color_map[i]),
+            name=f'Segment {i + 1}: Class {pred}'
         ))
-        
-        # Add vertical dashed lines to indicate segment boundaries
-        if end < len(df_filtered):
-            fig_nir.add_vline(x=end, line=dict(dash='dash', color='gray'))
+        # Add a vertical dashed line to indicate segment boundaries
+        fig_nir.add_shape(type="line",
+            x0=df_filtered.index[start],
+            y0=df_filtered['NIR'].min(),
+            x1=df_filtered.index[start],
+            y1=df_filtered['NIR'].max(),
+            line=dict(color="gray", width=1, dash="dash"))
 
     fig_nir.update_layout(title='NIR Signal Segmentation with Predicted Categories',
-                          xaxis_title='Sample Index',
-                          yaxis_title='NIR Signal Value')
+                           xaxis_title='Sample Index',
+                           yaxis_title='NIR Value')
 
-    # Plot VIS signal
+    # Plot VIS segments
     for i, (start, pred) in enumerate(zip(range(0, len(df_filtered), segment_size), predictions)):
         end = min(start + segment_size, len(df_filtered))
+        # Add VIS line plot
         fig_vis.add_trace(go.Scatter(
             x=df_filtered.index[start:end],
             y=df_filtered['VIS'].iloc[start:end],
             mode='lines',
-            line=dict(color=colors[i % unique_segments]),  # Color by segment index
-            name=f'Segment {i+1}: Class {pred}'
+            line=dict(color=color_map[i]),
+            name=f'Segment {i + 1}: Class {pred}'
         ))
-        
-        # Add vertical dashed lines to indicate segment boundaries
-        if end < len(df_filtered):
-            fig_vis.add_vline(x=end, line=dict(dash='dash', color='gray'))
+        # Add a vertical dashed line to indicate segment boundaries
+        fig_vis.add_shape(type="line",
+            x0=df_filtered.index[start],
+            y0=df_filtered['VIS'].min(),
+            x1=df_filtered.index[start],
+            y1=df_filtered['VIS'].max(),
+            line=dict(color="gray", width=1, dash="dash"))
 
     fig_vis.update_layout(title='VIS Signal Segmentation with Predicted Categories',
-                          xaxis_title='Sample Index',
-                          yaxis_title='VIS Signal Value')
+                           xaxis_title='Sample Index',
+                           yaxis_title='VIS Value')
 
     return fig_nir, fig_vis
 
-# Set the GitHub URL for the model
-model_url = "https://raw.githubusercontent.com/meliaph-monitech/HyundaiMOBISClassification/main/laser_welding_model.joblib"
+# Set the GitHub repository details
+owner = "meliaph-monitech"
+repo = "HyundaiMOBISClassification"
+path = "laser_welding_model.joblib"
 
-# Load the trained model
-model = load_model_from_github(model_url)
+# Load the trained model from GitHub
+model = load_model_from_github_api(owner, repo, path)
 
-# Upload the new CSV file for classification
-uploaded_file = st.file_uploader("Upload your new CSV file for classification", type='csv')
+# Streamlit app layout
+st.title("Laser Welding Signal Classification")
+st.write("Upload your CSV file for classification:")
 
+# Step 2: Upload the new CSV file for classification
+uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
 if uploaded_file is not None:
     # Load and preprocess the new data
     df_filtered = load_and_filter_csv(uploaded_file)
