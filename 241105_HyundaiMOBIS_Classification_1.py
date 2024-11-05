@@ -1,9 +1,8 @@
-# Importing required libraries
 import pandas as pd
 import numpy as np
 import joblib
+import plotly.graph_objects as go
 import streamlit as st
-import plotly.graph_objs as go
 
 # Function to load the trained model
 def load_model(model_path):
@@ -12,7 +11,7 @@ def load_model(model_path):
 # Function to load and filter the new CSV file
 def load_and_filter_csv(file, filter_column='L/O', filter_threshold=0.4):
     df = pd.read_csv(file)
-    df_filtered = df[df[filter_column] >= filter_threshold]  # Apply the filtering based on L/O column
+    df_filtered = df[df[filter_column] >= filter_threshold]  # Apply filtering
     return df_filtered[['NIR', 'VIS']]
 
 # Function to segment the signal data
@@ -38,58 +37,61 @@ def extract_features(df_segment):
         'min_VIS': np.min(df_segment['VIS']),
     }
 
-# Function to visualize the segments with predicted categories using Plotly
+# Function to plot segments with predicted categories
 def plot_segments(df_filtered, predictions, segment_size):
     fig_nir = go.Figure()
     fig_vis = go.Figure()
-
-    colors = {0: 'blue', 1: 'orange', 2: 'green', 3: 'red'}  # Define colors for each class
+    
+    # Create a color map
+    color_map = plt.cm.get_cmap('viridis', len(predictions))
 
     for i, (start, pred) in enumerate(zip(range(0, len(df_filtered), segment_size), predictions)):
         end = min(start + segment_size, len(df_filtered))
-        segment_nir = df_filtered['NIR'].iloc[start:end]
-        segment_vis = df_filtered['VIS'].iloc[start:end]
         
+        # Color based on segment index
+        color = f'rgba{tuple((np.array(color_map(i)[:3]) * 255).astype(int)) + (100,)}'  # Adding transparency
+        
+        # Plot NIR
         fig_nir.add_trace(go.Scatter(
-            x=np.arange(start, end),
-            y=segment_nir,
+            x=df_filtered.index[start:end],
+            y=df_filtered['NIR'].iloc[start:end],
             mode='lines',
-            line=dict(color=colors[pred]),
-            name=f'Segment {i+1}: Class {pred}'
+            line=dict(color=color),
+            name=f'Segment {i + 1}: Pred {pred}'
         ))
-
+        
+        # Plot VIS
         fig_vis.add_trace(go.Scatter(
-            x=np.arange(start, end),
-            y=segment_vis,
+            x=df_filtered.index[start:end],
+            y=df_filtered['VIS'].iloc[start:end],
             mode='lines',
-            line=dict(color=colors[pred]),
-            name=f'Segment {i+1}: Class {pred}'
+            line=dict(color=color),
+            name=f'Segment {i + 1}: Pred {pred}'
         ))
 
-    fig_nir.update_layout(title='NIR Signal Segmentation with Predicted Categories',
-                           xaxis_title='Sample Index',
-                           yaxis_title='NIR Value')
-    
-    fig_vis.update_layout(title='VIS Signal Segmentation with Predicted Categories',
-                           xaxis_title='Sample Index',
-                           yaxis_title='VIS Value')
+    fig_nir.update_layout(title='NIR Signal Segmentation',
+                          xaxis_title='Sample Index',
+                          yaxis_title='NIR Value')
+    fig_vis.update_layout(title='VIS Signal Segmentation',
+                          xaxis_title='Sample Index',
+                          yaxis_title='VIS Value')
 
     return fig_nir, fig_vis
 
-# Streamlit App
-st.title('Laser Welding Signal Classification')
-st.write("Upload your trained model (.joblib) and the new CSV file for classification.")
+# Streamlit app layout
+st.title("Laser Welding Signal Classification")
 
 # Step 1: Upload the trained model
-uploaded_model = st.file_uploader("Upload your trained model file (.joblib):", type='joblib')
-if uploaded_model is not None:
-    model = load_model(uploaded_model)
-    st.success("Model uploaded successfully!")
+model_file = st.file_uploader("Upload your trained model file (.joblib):", type='joblib')
+if model_file:
+    model = load_model(model_file)
+    st.success("Model loaded successfully.")
 
     # Step 2: Upload the new CSV file for classification
-    uploaded_csv = st.file_uploader("Upload the new CSV file for classification:", type='csv')
-    if uploaded_csv is not None:
-        df_filtered = load_and_filter_csv(uploaded_csv)
+    csv_file = st.file_uploader("Upload the new CSV file for classification:", type='csv')
+    
+    if csv_file:
+        df_filtered = load_and_filter_csv(csv_file)
 
         if not df_filtered.empty:
             # Segment the filtered data
@@ -107,8 +109,6 @@ if uploaded_model is not None:
 
             # Visualize the segments with predicted categories
             fig_nir, fig_vis = plot_segments(df_filtered, predictions, segment_size=10000)
-
-            # Show the plots in the Streamlit app
             st.plotly_chart(fig_nir)
             st.plotly_chart(fig_vis)
         else:
