@@ -8,6 +8,9 @@ import base64
 import plotly.graph_objects as go
 import plotly.express as px
 
+# Set page layout to wide (must be the first command)
+st.set_page_config(layout="wide")
+
 # Function to load the trained model from GitHub using the API
 def load_model_from_github_api(owner, repo, path):
     api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
