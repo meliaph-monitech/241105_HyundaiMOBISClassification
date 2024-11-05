@@ -3,6 +3,7 @@ import numpy as np
 import joblib
 import plotly.graph_objects as go
 import streamlit as st
+import plotly.express as px  # Import Plotly Express for color scales
 
 # Function to load the trained model
 def load_model(model_path):
@@ -42,14 +43,15 @@ def plot_segments(df_filtered, predictions, segment_size):
     fig_nir = go.Figure()
     fig_vis = go.Figure()
     
-    # Create a color map
-    color_map = plt.cm.get_cmap('viridis', len(predictions))
+    # Create a color scale for segments
+    colors = px.colors.sequential.Viridis  # Using Plotly's Viridis color scale
+    num_segments = len(predictions)
 
     for i, (start, pred) in enumerate(zip(range(0, len(df_filtered), segment_size), predictions)):
         end = min(start + segment_size, len(df_filtered))
         
-        # Color based on segment index
-        color = f'rgba{tuple((np.array(color_map(i)[:3]) * 255).astype(int)) + (100,)}'  # Adding transparency
+        # Select color based on segment index
+        color = colors[i % len(colors)]  # Loop through colors if there are more segments than colors
         
         # Plot NIR
         fig_nir.add_trace(go.Scatter(
