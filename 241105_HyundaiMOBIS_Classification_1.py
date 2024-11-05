@@ -43,15 +43,16 @@ def plot_segments(df_filtered, predictions, segment_size):
     fig_nir = go.Figure()
     fig_vis = go.Figure()
     
-    # Create a color scale for segments
-    colors = px.colors.sequential.Viridis  # Using Plotly's Viridis color scale
-    num_segments = len(predictions)
+    # Create a color map for predictions
+    unique_labels = np.unique(predictions)
+    colors = px.colors.qualitative.Plotly  # Use Plotly's qualitative color palette
+    color_map = {label: colors[i % len(colors)] for i, label in enumerate(unique_labels)}
 
     for i, (start, pred) in enumerate(zip(range(0, len(df_filtered), segment_size), predictions)):
         end = min(start + segment_size, len(df_filtered))
         
-        # Select color based on segment index
-        color = colors[i % len(colors)]  # Loop through colors if there are more segments than colors
+        # Use color based on predicted class
+        color = color_map[pred]  # Get color for the predicted class
         
         # Plot NIR
         fig_nir.add_trace(go.Scatter(
@@ -59,7 +60,7 @@ def plot_segments(df_filtered, predictions, segment_size):
             y=df_filtered['NIR'].iloc[start:end],
             mode='lines',
             line=dict(color=color),
-            name=f'Segment {i + 1}: Pred {pred}'
+            name=f'Segment {i + 1}: Class {pred}'
         ))
         
         # Plot VIS
@@ -68,7 +69,7 @@ def plot_segments(df_filtered, predictions, segment_size):
             y=df_filtered['VIS'].iloc[start:end],
             mode='lines',
             line=dict(color=color),
-            name=f'Segment {i + 1}: Pred {pred}'
+            name=f'Segment {i + 1}: Class {pred}'
         ))
 
     fig_nir.update_layout(title='NIR Signal Segmentation',
@@ -91,8 +92,8 @@ if model_file:
 
     # Step 2: Upload the new CSV file for classification
     csv_file = st.file_uploader("Upload the new CSV file for classification:", type='csv')
-    
     if csv_file:
+        # Load and preprocess the new data
         df_filtered = load_and_filter_csv(csv_file)
 
         if not df_filtered.empty:
