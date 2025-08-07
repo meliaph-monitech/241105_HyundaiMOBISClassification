@@ -122,7 +122,7 @@ path = "laser_welding_model.joblib"
 model = load_model_from_github_api(owner, repo, path)
 
 # Streamlit app layout
-st.title("Laser Welding Signal Classification")
+st.title("Laser Welding Single Signal Classification")
 st.write("Upload your CSV file for classification:")
 
 # Step 2: Upload the new CSV file for classification
